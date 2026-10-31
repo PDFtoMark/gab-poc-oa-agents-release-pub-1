@@ -1,0 +1,43 @@
+name: Release Probe
+on:
+  workflow_run:
+    workflows: ['CI']
+    types:
+      - completed
+    branches:
+      - main
+jobs:
+  diag:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: dump
+        run: |
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "EVENT_HEAD_SHA=${{ github.event.workflow_run.head_sha }}"
+          echo "EVENT_HEAD_BRANCH=${{ github.event.workflow_run.head_branch }}"
+          echo "EVENT_HEAD_REPO=${{ github.event.workflow_run.head_repository.full_name }}"
+          echo "UPSTREAM_EVENT=${{ github.event.workflow_run.event }}"
+          if [ "$GITHUB_SHA" = "${{ github.event.workflow_run.head_sha }}" ]; then echo "SHA_MATCH=yes"; else echo "SHA_MATCH=no"; fi
+  gated:
+    if: ${{ github.repository == 'PDFtoMark/gab-poc-oa-agents-release-pub' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.sha == github.event.workflow_run.head_sha }}
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Canary
+        run: |
+          echo "GATE_PASSED=true"
+          echo "CHECKED_OUT=$(git rev-parse HEAD)"
+          echo "ATTACKER_MARKER=$([ -f attacker-marker.txt ] && echo present || echo absent)"
+          echo "SECRET_PRESENT=$([ -n "${{ secrets.FAKE_RELEASE_SECRET }}" ] && echo yes || echo no)"
